@@ -1,20 +1,27 @@
 #include <iostream>
 #include <thread>
 #include "client.h"
+
 int main() {
     URI uri;
     uri.parse("https://www.baidu.com/test/asdf");
     printf("%s", uri.host());
     printf("%s", uri.path());
 
-    return 0;
+    //return 0;
+
+#if(PLATFORM == WINDOWS)
     ProcessLanguageClient client(R"(F:\LLVM\bin\clangd.exe)");
+#elif(PLATFORM == LINUX)
+    ProcessLanguageClient client("clangd --log=verbose");
+#endif
     MapMessageHandler my;
     std::thread thread([&] {
         client.loop(my);
     });
 
-    string_ref file = "file:///C:/Users/Administrator/Desktop/test.c";
+    //string_ref file = "file:///C:/Users/Administrator/Desktop/test.c";
+    string_ref file = "main.cpp";
 
     std::string text = "int main() { return 0; }\n";
     int res;

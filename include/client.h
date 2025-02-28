@@ -4,16 +4,39 @@
 
 #ifndef LSP_CLIENT_H
 #define LSP_CLIENT_H
+
+#define WINDOWS 1
+#define LINUX 2
+#if defined(_WIN32)
+    #define PLATFORM WINDOWS
+#elif defined(__linux__)
+    #define PLATFORM LINUX
+#endif
+
 #include "transport.h"
 #include "protocol.h"
+#if(PLATFORM == WINDOWS)
 #include "windows.h"
+#elif(PLATFORM == LINUX)
+#include "unistd.h"
+#endif
+
+#if(PLATFORM == WINDOWS)
+#elif(PLATFORM == LINUX)
+#endif
+
+
 class LanguageClient : public JsonTransport {
 public:
     virtual ~LanguageClient() = default;
 public:
     RequestID Initialize(option<DocumentUri> rootUri = {}) {
         InitializeParams params;
+#if(PLATFORM == WINDOWS)
         params.processId = GetCurrentProcessId();
+#elif(PLATFORM == LINUX)        
+        params.processId = getpid();
+#endif        
         params.rootUri = rootUri;
         return SendRequest("initialize", params);
     }
@@ -201,10 +224,17 @@ public:
 };
 class ProcessLanguageClient : public LanguageClient {
 public:
+#if(PLATFORM == WINDOWS)
     HANDLE fReadIn = nullptr, fWriteIn = nullptr;
     HANDLE fReadOut = nullptr, fWriteOut = nullptr;
     PROCESS_INFORMATION fProcess = {nullptr};
+#elif(PLATFORM == LINUX)
+    int pipeParent2Child[2], pipeChild2Parent[2];
+    pid_t forkPid; //probably the Server PID
+#endif
+    
     explicit ProcessLanguageClient(const char *program, const char *arguments = "") {
+#if(PLATFORM == WINDOWS)
         SECURITY_ATTRIBUTES sa = {0};
         sa.nLength = sizeof(SECURITY_ATTRIBUTES);
         sa.bInheritHandle = true;
@@ -220,13 +250,48 @@ public:
         si.hStdOutput = fWriteOut;
         si.dwFlags = STARTF_USESTDHANDLES;
         if (!CreateProcessA(program, (char *) arguments, 0, 0, TRUE,
-                            CREATE_NO_WINDOW, 0, 0, (LPSTARTUPINFOA) &si, &fProcess)) {
+        CREATE_NO_WINDOW, 0, 0, (LPSTARTUPINFOA) &si, &fProcess)) {
             printf("Create Process error\n");
         }
+#elif(PLATFORM == LINUX)
+        if(pipe(pipeParent2Child) != 0)
+        {
+            printf("Could not open pipe p2c\n");
+        }
+        if(pipe(pipeChild2Parent) != 0)
+        {
+            printf("Could not open pipe c2p\n");
+        }
+        //https://stackoverflow.com/questions/51996946/c-both-input-and-output-pipe-to-the-external-program
+        forkPid = fork(); //clone process
+        if(forkPid < 0)
+        {
+            printf("Fork error \n");
+        }
+        else if(forkPid > 0)//Parent (i.e. client) process
+        {
+            close(pipeParent2Child[0]);
+            close(pipeChild2Parent[1]);
+            int status;
+            //waitpid
+        }
+        else //Child (i.e. server) process
+        {
+            close(pipeParent2Child[1]);
+            close(pipeChild2Parent[0]);
+            //route stdin and stdout
+            dup2(pipeParent2Child[0], STDIN_FILENO);
+            dup2(pipeChild2Parent[1], STDOUT_FILENO);
+        }
+        system(program); //call clangd from child, making this process the server
+        
+
+#endif
 
         //m_exec.start(program, arguments);
         //m_exec.set_wait_timeout(exec_stream_t::s_child, INFINITE);
     }
+
     ~ProcessLanguageClient() override {
         /*
         DisconnectNamedPipe(fReadIn);
@@ -234,6 +299,8 @@ public:
         DisconnectNamedPipe(fReadOut);
         DisconnectNamedPipe(fWriteOut);
         */
+#if(PLATFORM == WINDOWS)
+
         CloseHandle(fReadIn);
         CloseHandle(fWriteIn);
         CloseHandle(fReadOut);
@@ -246,21 +313,39 @@ public:
         }
         CloseHandle(fProcess.hThread);
         CloseHandle(fProcess.hProcess);
+#elif(PLATFORM == LINUX)
+        //TODO: exit elegantly
+#endif
     }
+
     void SkipLine() {
-        char read;
+        char readChar;
+#if(PLATFORM == WINDOWS)
         DWORD hasRead;
         while (ReadFile(fReadOut, &read, 1, &hasRead, NULL)) {
             if (read == '\n') {
                 break;
             }
         }
+#elif(PLATFORM == LINUX)
+        while(read(STDIN_FILENO, &readChar, 1))
+        {
+            if(readChar == '\n')
+            {
+                break;
+            }
+        }
+#endif
     }
+
+    
     int ReadLength() {
         // "Content-Length: "
         char szReadBuffer[255];
-        DWORD hasRead;
         int length = 0;
+
+#if(PLATFORM == WINDOWS)        
+        DWORD hasRead;
         while (ReadFile(fReadOut, &szReadBuffer[length], 1, &hasRead, NULL)) {
             if (szReadBuffer[length] == '\n') {
                 break;
@@ -268,19 +353,37 @@ public:
             length++;
         }
         return atoi(szReadBuffer + 16);
+#elif(PLATFORM == LINUX)
+        while(read(STDIN_FILENO, &szReadBuffer[length], 1))
+        {
+            if(szReadBuffer[length] == '\n')
+            {
+                break;
+            }
+        }
+#endif
     }
+
     void Read(int length, std::string &out) {
-        int readSize = 0;
-        DWORD hasRead;
+        
         out.resize(length);
+        
+        #if(PLATFORM == WINDOWS)
+        DWORD hasRead;
+        int readSize = 0;
         while (ReadFile(fReadOut, &out[readSize], length, &hasRead, NULL)) {
             readSize += hasRead;
             if (readSize >= length) {
                 break;
             }
         }
+#elif(PLATFORM == LINUX)
+        read(STDIN_FILENO, &out[0], length);
+#endif
     }
+
     bool Write(std::string &in) {
+#if(PLATFORM == WINDOWS)        
         DWORD hasWritten;
         int writeSize = 0;
         int totalSize = in.length();
@@ -291,6 +394,13 @@ public:
             }
         }
         return true;
+
+#elif(PLATFORM == LINUX)
+        int writeSize = 0;
+        int totalSize = in.length();
+        write(STDOUT_FILENO, &in[0], totalSize);
+        return true;
+#endif
     }
     bool readJson(json &json) override {
         json.clear();

@@ -1,0 +1,3 @@
+/home/kristblo/lsp-cpp/CMakeFiles/LspClientTest.dir
+/home/kristblo/lsp-cpp/CMakeFiles/edit_cache.dir
+/home/kristblo/lsp-cpp/CMakeFiles/rebuild_cache.dir
