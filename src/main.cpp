@@ -5,8 +5,8 @@
 int main() {
     URI uri;
     uri.parse("https://www.baidu.com/test/asdf");
-    printf("%s", uri.host());
-    printf("%s", uri.path());
+    printf("Host: %s\n", uri.host());
+    printf("Path: %s\n", uri.path());
 
     //return 0;
 
@@ -21,13 +21,16 @@ int main() {
     });
 
     //string_ref file = "file:///C:/Users/Administrator/Desktop/test.c";
-    string_ref file = "main.cpp";
+    string_ref file = "~/lsp-cpp/test.c";
+    //string_ref file = "~/lsp-cpp/";
+    string_ref root = "~/lsp-cpp/";
 
     std::string text = "int main() { return 0; }\n";
     int res;
     while (scanf("%d", &res)) {
         if (res == 1) {
             client.Exit();
+            //client.Shutdown();
             thread.detach();
             return 0;
         }
@@ -40,6 +43,9 @@ int main() {
         }
         if (res == 4) {
             client.Formatting(file);
+        }
+        if (res == 5) {
+            client.WorkspaceSymbol("client");
         }
     }
     return 0;

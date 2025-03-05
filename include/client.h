@@ -30,7 +30,7 @@ class LanguageClient : public JsonTransport {
 public:
     virtual ~LanguageClient() = default;
 public:
-    RequestID Initialize(option<DocumentUri> rootUri = {}) {
+    RequestID Initialize(option<DocumentUri> rootUri = {}, option<DocumentUri> rootPath = {}) {
         InitializeParams params;
 #if(PLATFORM == WINDOWS)
         params.processId = GetCurrentProcessId();
@@ -38,6 +38,7 @@ public:
         params.processId = getpid();
 #endif        
         params.rootUri = rootUri;
+        params.rootPath = rootPath;
         return SendRequest("initialize", params);
     }
     RequestID Shutdown() {
@@ -270,20 +271,20 @@ public:
         }
         else if(forkPid > 0)//Parent (i.e. client) process
         {
-            close(pipeParent2Child[0]);
-            close(pipeChild2Parent[1]);
+            //close(pipeParent2Child[0]);
+            //close(pipeChild2Parent[1]);
             int status;
             //waitpid
         }
         else //Child (i.e. server) process
         {
-            close(pipeParent2Child[1]);
-            close(pipeChild2Parent[0]);
+            //close(pipeParent2Child[1]);
+            //close(pipeChild2Parent[0]);
             //route stdin and stdout
             dup2(pipeParent2Child[0], STDIN_FILENO);
             dup2(pipeChild2Parent[1], STDOUT_FILENO);
+            system(program); //call clangd from child, making this process the server
         }
-        system(program); //call clangd from child, making this process the server
         
 
 #endif
@@ -360,7 +361,9 @@ public:
             {
                 break;
             }
+            length++;
         }
+        return length;
 #endif
     }
 
@@ -378,7 +381,8 @@ public:
             }
         }
 #elif(PLATFORM == LINUX)
-        read(STDIN_FILENO, &out[0], length);
+        //read(STDIN_FILENO, &out[0], length);
+        read(pipeChild2Parent[0], &out[0], length);
 #endif
     }
 
@@ -398,10 +402,23 @@ public:
 #elif(PLATFORM == LINUX)
         int writeSize = 0;
         int totalSize = in.length();
-        write(STDOUT_FILENO, &in[0], totalSize);
-        return true;
+        ssize_t hasWritten = 0;
+        //write(STDOUT_FILENO, &in[0], totalSize);
+        printf("About to write %i bytes\n", totalSize);
+        hasWritten = write(pipeParent2Child[1], &in[0], totalSize);
+        printf("Wrote %i bytes\n", hasWritten);
+        if(hasWritten > 0)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+
 #endif
     }
+
     bool readJson(json &json) override {
         json.clear();
         int length = ReadLength();
@@ -411,15 +428,15 @@ public:
         try {
             json = json::parse(read);
         } catch (std::exception &e) {
-            //printf("read error -> %s\nread -> %s\n ", e.what(), read.c_str());
+            printf("read error -> %s\nread -> %s\n ", e.what(), read.c_str());
         }
         //printf("message %d:\n%s\n", length, read.c_str());
         return true;
     }
+
     bool writeJson(json &json) override {
-        std::string content = json.dump();
+        std::string content = json.dump(1, ' ');
         std::string header = "Content-Length: " + std::to_string(content.length()) + "\r\n\r\n" + content;
-        //printf("send:\n%s\n", content.c_str());
         return Write(header);
     }
 };
