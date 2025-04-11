@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/kristblo/lsp-cpp",
+  "command": "/usr/bin/c++  -I/home/kristblo/lsp-cpp/include -I/home/kristblo/lsp-cpp/src -std=gnu++14 -o CMakeFiles/LspClientTest.dir/src/main.cpp.o -c /home/kristblo/lsp-cpp/src/main.cpp",
+  "file": "/home/kristblo/lsp-cpp/src/main.cpp",
+  "output": "CMakeFiles/LspClientTest.dir/src/main.cpp.o"
+}
+]

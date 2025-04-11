@@ -7,6 +7,10 @@
 
 #define WINDOWS 1
 #define LINUX 2
+
+//Ascertain which platform to build the client for.
+//This primarily affects the client's interaction
+//with the file system.
 #if defined(_WIN32)
     #define PLATFORM WINDOWS
 #elif defined(__linux__)
@@ -15,12 +19,16 @@
 
 #include "transport.h"
 #include "protocol.h"
+
+//Import the relevant system header
 #if(PLATFORM == WINDOWS)
 #include "windows.h"
 #elif(PLATFORM == LINUX)
 #include "unistd.h"
 #endif
 
+
+//Template for later use
 #if(PLATFORM == WINDOWS)
 #elif(PLATFORM == LINUX)
 #endif
@@ -406,7 +414,7 @@ public:
         //write(STDOUT_FILENO, &in[0], totalSize);
         printf("About to write %i bytes\n", totalSize);
         hasWritten = write(pipeParent2Child[1], &in[0], totalSize);
-        printf("Wrote %i bytes\n", hasWritten);
+        printf("Wrote %li bytes\n", hasWritten);
         if(hasWritten > 0)
         {
             return true;
