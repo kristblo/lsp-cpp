@@ -3,6 +3,16 @@
 #include <fstream>
 #include "client.h"
 
+
+/**
+ * This commit contains a minimum working version of an Ubuntu-compatible version of Alex Tsao's LSP client
+ * for Windows. Additionally, it contains some example demonstration fuctionality in the main loop.
+ * When compiled and run, the program will call the basic LSP functions on user input.
+ * Testing on WSL2 indicates that input occasionally fails. Keep repeating commands
+ * 2-7 (by writing <num> into the terminal) until the server responds. Command 1 terminates client and server.
+ */
+
+
 int main() {
     URI uri;
     uri.parse("https://www.baidu.com/test/asdf");
