@@ -185,6 +185,11 @@ public:
         params.position = position;
         return SendRequest("textDocument/documentHighlight", std::move(params));
     }
+    RequestID DocumentLink(DocumentUri uri) {
+        DocumentSymbolParams params;
+        params.textDocument.uri = std::move(uri);
+        return SendRequest("textDocument/documentLink", std::move(params));
+    }
     RequestID SymbolInfo(DocumentUri uri, Position position) {
         TextDocumentPositionParams params;
         params.textDocument.uri = std::move(uri);
