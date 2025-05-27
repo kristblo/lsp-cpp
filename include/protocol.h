@@ -1029,6 +1029,59 @@ struct DocumentHighlight {
         return LHS.kind == RHS.kind && LHS.range == RHS.range;
     }
 };
+
+enum class CallHierarchyDirection {Incoming = 0, Outgoing = 1, Both = 2};
+
+struct CallHierarchyParams : public TextDocumentPositionParams {
+    /// resolve??
+    int resolve = 0;
+
+    /// The direction of the hierarchy levels to resolve
+    CallHierarchyDirection direction = CallHierarchyDirection::Incoming;
+
+    //NOTE: This class was not in AlexTsao's client, and I don't get
+    //how he figured out that resolve and direction are needed.
+};
+JSON_SERIALIZE(CallHierarchyParams, MAP_JSON(MAP_KEY(resolve), MAP_KEY(direction), MAP_KEY(textDocument), MAP_KEY(position)), {});
+
+struct CallHierArchyItem {
+    //The name of this item
+    std::string name;
+
+    //The kind of this item; class, function etc.
+    SymbolKind kind;
+
+    //Details for the item, such as fuction signature
+    option<std::string> detail;
+
+    //Whether or not the item is reprecated. NOTE: no idea what this means
+    bool deprecated;
+
+    //The URI of the text document in which the call was found
+    DocumentUri uri;
+
+    /// The range enclosing this call hierarchy item not including
+    /// leading/trailing whitespace but everything else like comments. This
+    /// information is typically used to determine if the client's cursor is
+    /// inside the call hierarchy item to reveal in the symbol in the UI.    
+    Range range;
+
+    /// The range that should be selected and revealed when this type hierarchy
+    /// item is being picked, e.g. the name of a function. Must be contained by
+    /// the `range`.    
+    SelectionRange selectionrange;
+
+    /// If this call hierarchy item is resolved, it contains incoming calls.
+    /// Could be empty if the item is never called. If not defined,
+    /// the callers have not been resolved yet.    
+    option<std::vector<CallHierArchyItem>> incoming;
+
+    /// If this call hierarchy item is resolved, it contains outgoing calls
+    /// of the current item. Could be empty if the item does not make any
+    /// calls. If not defined, callees have not been resolved.
+    option<std::vector<CallHierArchyItem>> outgoing;
+};
+
 enum class TypeHierarchyDirection { Children = 0, Parents = 1, Both = 2 };
 
 struct TypeHierarchyParams : public TextDocumentPositionParams {

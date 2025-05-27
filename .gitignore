@@ -34,3 +34,5 @@
 .idea/
 cmake-build-debug/
 .cache/*
+.vscode/*
+clangd_out.json

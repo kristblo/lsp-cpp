@@ -1,12 +1,20 @@
 #include <iostream>
 #include <thread>
 #include <fstream>
+#include <string>
 #include "client.h"
 
 
 /**
  * The purpose of this branch is to experiment with and get to know the LSP in order to find out
  * what functionality is needed to use it in the Codeviz project
+ * 
+ * TODO: Look into Semantic Tokens, currently missing from the client. Could be the solution
+ * for getting local variables.
+ * 
+ * TODO: Test the TypeHierarchy request to get inheritance info.
+ * 
+ * TODO: Implement Call Hierarchy in the client
  */
 int mySymbolTest = 42;
 
@@ -21,7 +29,14 @@ int main() {
 #if(PLATFORM == WINDOWS)
     ProcessLanguageClient client(R"(F:\LLVM\bin\clangd.exe)");
 #elif(PLATFORM == LINUX)
-    ProcessLanguageClient client("clangd --log=verbose --pretty --all-scopes-completion --background-index > clangd_out.json 2>&1");
+
+    //Use with system()
+    //ProcessLanguageClient client("clangd --log=verbose --pretty --all-scopes-completion --background-index > clangd_out.json 2>&1");//
+    ProcessLanguageClient client("clangd --pretty --all-scopes-completion --background-index");//  > clangd_out.json 2>&1
+
+    //Use with execlp()
+    //ProcessLanguageClient client("clangd", "--log=verbose --pretty --all-scopes-completion --background-index");//  > clangd_out.json 2>&1
+
 #endif
     MapMessageHandler my;
     std::thread thread([&] {
@@ -33,21 +48,24 @@ int main() {
     //string_ref file = "~/lsp-cpp/";
     string_ref root = "file:///home/kristblo/lsp-cpp/";
 
-    string_ref client_file = "file:///home/kristblo/lsp-cpp/include/client.h";
-
+    
     std::string text;// = "int main() { return 0; }\n";
     std::ifstream t("./src/main.cpp");
     std::stringstream buffer;
     buffer << t.rdbuf();
     text = buffer.str();
-
+    
+    //URI library seems partially broken, luckily there's always substring.
+    std::string client_file = "file:///home/kristblo/lsp-cpp/include/client.h";
     std::string client_text;
-    std::ifstream ct("./include/client.h");
+    //std::ifstream ct("./include/client.h");
+    std::ifstream ct(client_file.substr(7));
     std::stringstream cbuffer;
     cbuffer << ct.rdbuf();
     client_text = cbuffer.str();
 
     int res;
+    //printf("DEBUG: entering main program loop\n\r");
     while (scanf("%d", &res)) {
         if (res == 1) {
             //client.Exit();
@@ -68,9 +86,13 @@ int main() {
         }
         if (res == 5) {
             client.DocumentSymbol(client_file);
+            client.TypeHierarchy(client_file, {246, 20}, TypeHierarchyDirection::Both, 1);
         }
         if (res == 6) {
-            client.WorkspaceSymbol("");
+            client.CallHierarchy(client_file, {242, 15}, CallHierarchyDirection::Both, 1);
+            int length = 0;
+            length = client.ReadLength();
+            printf("teststreng %i\n", length);
         }
         if (res == 7) {
             client.GoToDeclaration(file, {57,15});

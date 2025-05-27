@@ -17,6 +17,9 @@
     #define PLATFORM LINUX
 #endif
 
+#define LOGFILE "clangd_out.json"
+#define DEBUG 1
+
 #include "transport.h"
 #include "protocol.h"
 
@@ -196,6 +199,14 @@ public:
         params.position = position;
         return SendRequest("textDocument/symbolInfo", std::move(params));
     }
+    RequestID CallHierarchy(DocumentUri uri, Position position, CallHierarchyDirection direction, int resolve){
+        CallHierarchyParams params;
+        params.textDocument.uri = std::move(uri);
+        params.position = position;
+        params.direction = direction;
+        params.resolve = resolve;
+        return SendRequest("textDocument/prepareCallHierarchy", std::move(params));
+    }
     RequestID TypeHierarchy(DocumentUri uri, Position position, TypeHierarchyDirection direction, int resolve) {
         TypeHierarchyParams params;
         params.textDocument.uri = std::move(uri);
@@ -284,19 +295,20 @@ public:
         }
         else if(forkPid > 0)//Parent (i.e. client) process
         {
-            //close(pipeParent2Child[0]);
-            //close(pipeChild2Parent[1]);
+            close(pipeParent2Child[0]);
+            close(pipeChild2Parent[1]);
             int status;
             //waitpid
         }
         else //Child (i.e. server) process
         {
-            //close(pipeParent2Child[1]);
-            //close(pipeChild2Parent[0]);
+            close(pipeParent2Child[1]);
+            close(pipeChild2Parent[0]);
             //route stdin and stdout
             dup2(pipeParent2Child[0], STDIN_FILENO);
             dup2(pipeChild2Parent[1], STDOUT_FILENO);
             system(program); //call clangd from child, making this process the server
+            //execlp(program, arguments, (char*)NULL);
         }
         
 
@@ -342,7 +354,8 @@ public:
             }
         }
 #elif(PLATFORM == LINUX)
-        while(read(STDIN_FILENO, &readChar, 1))
+        //while(read(STDIN_FILENO, &readChar, 1))
+        while(read(pipeChild2Parent[0], &readChar, 1))
         {
             if(readChar == '\n')
             {
@@ -355,6 +368,8 @@ public:
     
     int ReadLength() {
         // "Content-Length: "
+
+        //printf("DEBUG: entered readLength\n\r");
         char szReadBuffer[255];
         int length = 0;
 
@@ -368,7 +383,8 @@ public:
         }
         return atoi(szReadBuffer + 16);
 #elif(PLATFORM == LINUX)
-        while(read(STDIN_FILENO, &szReadBuffer[length], 1))
+        //while(read(STDIN_FILENO, &szReadBuffer[length], 1))
+        while(read(pipeChild2Parent[0], &szReadBuffer[length], 1))
         {
             if(szReadBuffer[length] == '\n')
             {
@@ -376,7 +392,9 @@ public:
             }
             length++;
         }
-        return length;
+        //printf("DEBUG: got here readLength\n\r");
+        //return length;
+        return atoi(szReadBuffer+16);
 #endif
     }
 
@@ -384,7 +402,7 @@ public:
         
         out.resize(length);
         
-        #if(PLATFORM == WINDOWS)
+#if(PLATFORM == WINDOWS)
         DWORD hasRead;
         int readSize = 0;
         while (ReadFile(fReadOut, &out[readSize], length, &hasRead, NULL)) {
@@ -419,6 +437,7 @@ public:
         //write(STDOUT_FILENO, &in[0], totalSize);
         printf("About to write %i bytes\n", totalSize);
         hasWritten = write(pipeParent2Child[1], &in[0], totalSize);
+        //hasWritten = write(STDOUT_FILENO, &in[0], totalSize);
         printf("Wrote %li bytes\n", hasWritten);
         if(hasWritten > 0)
         {
@@ -433,17 +452,30 @@ public:
     }
 
     bool readJson(json &json) override {
+        //printf("DEBUG: entered readJson\n\r");
         json.clear();
         int length = ReadLength();
+        //printf("DEBUG: got here readJson. Length: %i\n\r", length);
         SkipLine();
         std::string read;
         Read(length, read);
         try {
+            //printf("DEBUG: entered trycatch readJson.\n\r");
             json = json::parse(read);
         } catch (std::exception &e) {
             printf("read error -> %s\nread -> %s\n ", e.what(), read.c_str());
         }
-        //printf("message %d:\n%s\n", length, read.c_str());
+
+#if(DEBUG)
+        std::ofstream logfile(LOGFILE, std::ios::app);
+        if(logfile.is_open())
+        {
+            //dump(2) ensures indentation
+            logfile << json.dump(2) << "\n\r";
+            logfile.close();
+        }
+#endif
+
         return true;
     }
 
@@ -452,6 +484,11 @@ public:
         std::string header = "Content-Length: " + std::to_string(content.length()) + "\r\n\r\n" + content;
         return Write(header);
     }
+
+    /// TODO: integrate with readJson s.t. all communication with server happens via file
+    // json readJsonFromFile(const std::string& filename) {
+    //     std::
+    // }
 };
 
 #endif //LSP_CLIENT_H
