@@ -199,13 +199,27 @@ public:
         params.position = position;
         return SendRequest("textDocument/symbolInfo", std::move(params));
     }
-    RequestID CallHierarchy(DocumentUri uri, Position position, CallHierarchyDirection direction, int resolve){
-        CallHierarchyParams params;
+    RequestID CallHierarchy(DocumentUri uri, Position position){
+        CallHierarchyPrepareParams params;
         params.textDocument.uri = std::move(uri);
         params.position = position;
-        params.direction = direction;
-        params.resolve = resolve;
+
+
         return SendRequest("textDocument/prepareCallHierarchy", std::move(params));
+    }
+    RequestID CallHierarchyOutgoingCalls(value prepResult){
+        CallHierarchyOutgoingCallsParams params;
+
+        params.item = prepResult[0].get<CallHierarchyItem>();
+
+        return SendRequest("callHierarchy/outgoingCalls", std::move(params));
+    }
+    RequestID CallHierarchyIncomingCalls(value prepResult){
+        
+        CallHierarchyIncomingCallsParams params;
+        params.item = prepResult[0].get<CallHierarchyItem>();
+
+        return SendRequest("callHierarchy/incomingCalls", std::move(params));
     }
     RequestID TypeHierarchy(DocumentUri uri, Position position, TypeHierarchyDirection direction, int resolve) {
         TypeHierarchyParams params;
@@ -381,7 +395,6 @@ public:
             }
             length++;
         }
-        return atoi(szReadBuffer + 16);
 #elif(PLATFORM == LINUX)
         //while(read(STDIN_FILENO, &szReadBuffer[length], 1))
         while(read(pipeChild2Parent[0], &szReadBuffer[length], 1))
@@ -394,8 +407,8 @@ public:
         }
         //printf("DEBUG: got here readLength\n\r");
         //return length;
-        return atoi(szReadBuffer+16);
 #endif
+        return atoi(szReadBuffer+16);
     }
 
     void Read(int length, std::string &out) {
@@ -438,6 +451,18 @@ public:
         printf("About to write %i bytes\n", totalSize);
         hasWritten = write(pipeParent2Child[1], &in[0], totalSize);
         //hasWritten = write(STDOUT_FILENO, &in[0], totalSize);
+
+#if(DEBUG)
+        std::ofstream logfile(LOGFILE, std::ios::app);
+        if(logfile.is_open())
+        {
+            logfile << "OUTPUT to server: \n";
+            logfile << in << '\n';
+            logfile.flush();//TODO: verify necessity of this call
+            logfile.close();
+        }
+#endif
+
         printf("Wrote %li bytes\n", hasWritten);
         if(hasWritten > 0)
         {
@@ -470,8 +495,10 @@ public:
         std::ofstream logfile(LOGFILE, std::ios::app);
         if(logfile.is_open())
         {
+            logfile << "INPUT from server: \n";
             //dump(2) ensures indentation
             logfile << json.dump(2) << "\n\r";
+            logfile.flush();//TODO: verify necessity of this call
             logfile.close();
         }
 #endif

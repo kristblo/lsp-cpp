@@ -64,6 +64,11 @@ int main() {
     cbuffer << ct.rdbuf();
     client_text = cbuffer.str();
 
+    //Erase log file at startup.
+    std::ofstream clearFile(LOGFILE, std::ios::trunc);
+    clearFile.close();
+
+
     int res;
     //printf("DEBUG: entering main program loop\n\r");
     while (scanf("%d", &res)) {
@@ -86,13 +91,17 @@ int main() {
         }
         if (res == 5) {
             client.DocumentSymbol(client_file);
-            client.TypeHierarchy(client_file, {246, 20}, TypeHierarchyDirection::Both, 1);
+            client.TypeHierarchy(client_file, {260, 20}, TypeHierarchyDirection::Both, 1);
         }
         if (res == 6) {
-            client.CallHierarchy(client_file, {242, 15}, CallHierarchyDirection::Both, 1);
-            int length = 0;
-            length = client.ReadLength();
-            printf("teststreng %i\n", length);
+            client.CallHierarchy(client_file, {43, 14});
+            my.bindResponse("textDocument/prepareCallHierarchy", [&client](value &result)
+        {
+            //printf("%s\n", result.dump(2).c_str());
+            //client.CallHierarchyIncomingCalls(result);
+            client.CallHierarchyOutgoingCalls(result);
+        }
+        );
         }
         if (res == 7) {
             client.GoToDeclaration(file, {57,15});

@@ -19,6 +19,16 @@
 #define MAP_TO(KEY, TO) {KEY, value.TO}
 #define MAP_KV(K, ...) {K, {__VA_ARGS__}}
 #define FROM_KEY(KEY) if (j.contains(#KEY)) j.at(#KEY).get_to(value.KEY);
+// #define FROM_KEY(KEY) \
+//     if (j.contains(#KEY)){ \
+//         if (!j.at(#KEY).is_null()){ \
+//             printf("trying deserl key %s\n\r", #KEY); \
+//             j.at(#KEY).get_to(value.KEY); \
+//         } else{ \
+//             printf("key was null: %s\n\r", #KEY); \
+//         } \
+//     }
+
 #define JSON_SERIALIZE(Type, TO, FROM) \
     namespace nlohmann { \
         template <> struct adl_serializer<Type> { \
@@ -1030,57 +1040,57 @@ struct DocumentHighlight {
     }
 };
 
-enum class CallHierarchyDirection {Incoming = 0, Outgoing = 1, Both = 2};
+// enum class CallHierarchyDirection {Incoming = 0, Outgoing = 1, Both = 2};
 
-struct CallHierarchyParams : public TextDocumentPositionParams {
-    /// resolve??
-    int resolve = 0;
+// struct CallHierarchyParams : public TextDocumentPositionParams {
+//     /// resolve??
+//     int resolve = 0;
 
-    /// The direction of the hierarchy levels to resolve
-    CallHierarchyDirection direction = CallHierarchyDirection::Incoming;
+//     /// The direction of the hierarchy levels to resolve
+//     CallHierarchyDirection direction = CallHierarchyDirection::Incoming;
 
-    //NOTE: This class was not in AlexTsao's client, and I don't get
-    //how he figured out that resolve and direction are needed.
-};
-JSON_SERIALIZE(CallHierarchyParams, MAP_JSON(MAP_KEY(resolve), MAP_KEY(direction), MAP_KEY(textDocument), MAP_KEY(position)), {});
+//     //NOTE: This class was not in AlexTsao's client, and I don't get
+//     //how he figured out that resolve and direction are needed.
+// };
+// JSON_SERIALIZE(CallHierarchyParams, MAP_JSON(MAP_KEY(resolve), MAP_KEY(direction), MAP_KEY(textDocument), MAP_KEY(position)), {});
 
-struct CallHierArchyItem {
-    //The name of this item
-    std::string name;
+// struct CallHierArchyItem {
+//     //The name of this item
+//     std::string name;
 
-    //The kind of this item; class, function etc.
-    SymbolKind kind;
+//     //The kind of this item; class, function etc.
+//     SymbolKind kind;
 
-    //Details for the item, such as fuction signature
-    option<std::string> detail;
+//     //Details for the item, such as fuction signature
+//     option<std::string> detail;
 
-    //Whether or not the item is reprecated. NOTE: no idea what this means
-    bool deprecated;
+//     //Whether or not the item is reprecated. NOTE: no idea what this means
+//     bool deprecated;
 
-    //The URI of the text document in which the call was found
-    DocumentUri uri;
+//     //The URI of the text document in which the call was found
+//     DocumentUri uri;
 
-    /// The range enclosing this call hierarchy item not including
-    /// leading/trailing whitespace but everything else like comments. This
-    /// information is typically used to determine if the client's cursor is
-    /// inside the call hierarchy item to reveal in the symbol in the UI.    
-    Range range;
+//     /// The range enclosing this call hierarchy item not including
+//     /// leading/trailing whitespace but everything else like comments. This
+//     /// information is typically used to determine if the client's cursor is
+//     /// inside the call hierarchy item to reveal in the symbol in the UI.    
+//     Range range;
 
-    /// The range that should be selected and revealed when this type hierarchy
-    /// item is being picked, e.g. the name of a function. Must be contained by
-    /// the `range`.    
-    SelectionRange selectionrange;
+//     /// The range that should be selected and revealed when this type hierarchy
+//     /// item is being picked, e.g. the name of a function. Must be contained by
+//     /// the `range`.    
+//     SelectionRange selectionrange;
 
-    /// If this call hierarchy item is resolved, it contains incoming calls.
-    /// Could be empty if the item is never called. If not defined,
-    /// the callers have not been resolved yet.    
-    option<std::vector<CallHierArchyItem>> incoming;
+//     /// If this call hierarchy item is resolved, it contains incoming calls.
+//     /// Could be empty if the item is never called. If not defined,
+//     /// the callers have not been resolved yet.    
+//     option<std::vector<CallHierArchyItem>> incoming;
 
-    /// If this call hierarchy item is resolved, it contains outgoing calls
-    /// of the current item. Could be empty if the item does not make any
-    /// calls. If not defined, callees have not been resolved.
-    option<std::vector<CallHierArchyItem>> outgoing;
-};
+//     /// If this call hierarchy item is resolved, it contains outgoing calls
+//     /// of the current item. Could be empty if the item does not make any
+//     /// calls. If not defined, callees have not been resolved.
+//     option<std::vector<CallHierArchyItem>> outgoing;
+// };
 
 enum class TypeHierarchyDirection { Children = 0, Parents = 1, Both = 2 };
 
@@ -1136,6 +1146,104 @@ struct TypeHierarchyItem {
     /// need this (the item itself is sufficient to identify what to resolve)
     /// so don't declare it.
 };
+
+struct CallHierarchyPrepareParams : public TextDocumentPositionParams {};
+JSON_SERIALIZE(CallHierarchyPrepareParams, MAP_JSON(MAP_KEY(textDocument), MAP_KEY(position)), {});
+
+struct CallHierarchyItem {
+  /// The name of this item.
+  std::string name;
+
+  /// The kind of this item.
+  SymbolKind kind;
+
+  ///TODO: Implement SymbolTag
+  /// Tags for this item.
+  //std::vector<SymbolTag> tags;
+
+  /// More detaill for this item, e.g. the signature of a function.
+  option<std::string> detail;
+
+  /// The resource identifier of this item.
+  URIForFile uri;
+
+  /// The range enclosing this symbol not including leading / trailing
+  /// whitespace but everything else, e.g. comments and code.
+  Range range;
+
+  /// The range that should be selected and revealed when this symbol
+  /// is being picked, e.g. the name of a function.
+  /// Must be contained by `Rng`.
+  Range selectionRange;
+
+  /// An optional 'data' field, which can be used to identify a call
+  /// hierarchy item in an incomingCalls or outgoingCalls request.
+  std::string data;
+};
+
+JSON_SERIALIZE(CallHierarchyItem, 
+    {MAP_JSON(
+        MAP_KEY(name),
+        MAP_KEY(kind),
+        MAP_KEY(detail),
+        MAP_KEY(uri),
+        MAP_KEY(range),
+        MAP_KEY(selectionRange),
+        MAP_KEY(data),
+    )}, 
+    {
+        FROM_KEY(name);
+        FROM_KEY(kind);
+        FROM_KEY(detail);
+        FROM_KEY(uri);
+        FROM_KEY(range);
+        FROM_KEY(selectionRange);
+        FROM_KEY(data);        
+    });
+
+struct CallHierarchyIncomingCallsParams {
+    CallHierarchyItem item;
+};
+///TODO: fix
+JSON_SERIALIZE(CallHierarchyIncomingCallsParams, 
+    {MAP_JSON(
+        MAP_KEY(item),
+        )}, 
+    {
+        FROM_KEY(item);
+    });
+
+struct CallHierarchyIncomingCall {
+    //The item that makes the call
+    CallHierarchyItem from;
+
+    //The range at which the calls appear,
+    //relative to the caller denoted by 'from'
+    std::vector<Range> fromRanges;
+};
+//JSON_SERIALIZE(CallHierarchyIncomingCall, MAP_JSON(MAP_KEY(from), MAP_KEY(fromRanges)), {});
+
+struct CallHierarchyOutgoingCallsParams
+{
+    CallHierarchyItem item;
+};
+///TODO: Encode to JSON
+JSON_SERIALIZE(CallHierarchyOutgoingCallsParams,
+    {
+        MAP_JSON(MAP_KEY(item))
+    },
+    {
+        FROM_KEY(item);
+    }
+);
+
+struct CallHierarchyOutgoingCall {
+    CallHierarchyItem to;
+
+    std::vector<Range> fromRanges;
+};
+///TODO: Encode to JSON
+
 
 struct ReferenceParams : public TextDocumentPositionParams {
     // For now, no options like context.includeDeclaration are supported.

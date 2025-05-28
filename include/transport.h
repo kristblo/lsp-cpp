@@ -56,7 +56,11 @@ public:
         }
     }
     void onResponse(value &ID, value &result) override {
+#if(DEBUG)
+        printf("DEBUG: entered onResponse, reqsize is %li\n", m_requests.size());
+#endif
         for (int i = 0; i < m_requests.size(); ++i) {
+            printf("DEBUG: onResponse i = %i\n", i);
             if (ID == m_requests[i].first) {
                 m_requests[i].second(result);
                 m_requests.erase(m_requests.begin() + i);
@@ -95,6 +99,7 @@ public:
                             handler.onRequest(value["method"].get<std::string>(), value["params"], value["id"]);
                         } else if (value.contains("result")) {
                             handler.onResponse(value["id"], value["result"]);
+                            //handler.onResponse(value["id"], value);
                         } else if (value.contains("error")) {
                             handler.onError(value["id"], value["error"]);
                         }
