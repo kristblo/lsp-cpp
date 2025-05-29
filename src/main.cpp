@@ -12,9 +12,7 @@
  * TODO: Look into Semantic Tokens, currently missing from the client. Could be the solution
  * for getting local variables.
  * 
- * TODO: Test the TypeHierarchy request to get inheritance info.
  * 
- * TODO: Implement Call Hierarchy in the client
  */
 int mySymbolTest = 42;
 
@@ -26,6 +24,7 @@ int main() {
 
     //return 0;
 
+    MapMessageHandler my;
 #if(PLATFORM == WINDOWS)
     ProcessLanguageClient client(R"(F:\LLVM\bin\clangd.exe)");
 #elif(PLATFORM == LINUX)
@@ -38,15 +37,14 @@ int main() {
     //ProcessLanguageClient client("clangd", "--log=verbose --pretty --all-scopes-completion --background-index");//  > clangd_out.json 2>&1
 
 #endif
-    MapMessageHandler my;
     std::thread thread([&] {
         client.loop(my);
     });
 
     //string_ref file = "file:///C:/Users/Administrator/Desktop/test.c";
-    string_ref file = "file:///home/kristblo/lsp-cpp/src/main.cpp";
+    string_ref file = "file:///home/kristian/lsp-cpp/src/main.cpp";
     //string_ref file = "~/lsp-cpp/";
-    string_ref root = "file:///home/kristblo/lsp-cpp/";
+    string_ref root = "file:///home/kristian/lsp-cpp/";
 
     
     std::string text;// = "int main() { return 0; }\n";
@@ -56,7 +54,7 @@ int main() {
     text = buffer.str();
     
     //URI library seems partially broken, luckily there's always substring.
-    std::string client_file = "file:///home/kristblo/lsp-cpp/include/client.h";
+    std::string client_file = "file:///home/kristian/lsp-cpp/include/client.h";
     std::string client_text;
     //std::ifstream ct("./include/client.h");
     std::ifstream ct(client_file.substr(7));
@@ -72,18 +70,24 @@ int main() {
     int res;
     //printf("DEBUG: entering main program loop\n\r");
     while (scanf("%d", &res)) {
+        if (res == 0)
+        {
+            thread.detach();
+            client.~ProcessLanguageClient();
+            return 0;
+        }
+        
+        
         if (res == 1) {
             //client.Exit();
             client.Shutdown();
-            thread.detach();
-            return 0;
         }
         if (res == 2) {
             client.Initialize(root);
         }
         if (res == 3) {
             client.DidOpen(file, text);
-            client.DidOpen(client_file, client_text);
+            //client.DidOpen(client_file, client_text);
             client.Sync();
         }
         if (res == 4) {
@@ -96,23 +100,45 @@ int main() {
         if (res == 6) {
             client.CallHierarchy(client_file, {43, 14});
             my.bindResponse("textDocument/prepareCallHierarchy", [&client](value &result)
-        {
-            //printf("%s\n", result.dump(2).c_str());
-            //client.CallHierarchyIncomingCalls(result);
-            client.CallHierarchyOutgoingCalls(result);
-        }
-        );
+            {
+                //printf("%s\n", result.dump(2).c_str());
+                client.CallHierarchyIncomingCalls(result);
+                //client.CallHierarchyOutgoingCalls(result);
+            });
         }
         if (res == 7) {
             client.GoToDeclaration(file, {57,15});
         }
         if (res == 8)
         {
-            client.SymbolInfo(file, {12, 5});
+            client.DocumentSymbol(file);
+            client.SymbolInfo(file, {16, 7});
+            client.WorkspaceSymbol("DidClose");
         }
         if (res == 9)
         {
-            client.DocumentLink(client_file);
+            client.DocumentLink(file); 
+            my.bindResponse("textDocument/documentLink", [&](value &result){
+                for (size_t i = 0; i < result.size(); i++)
+                {
+                    DocumentLink link = result[i].get<DocumentLink>();
+                    std::string linkUriAsString = link.target.file.c_str();
+                    
+                    if (linkUriAsString.find(root) != std::string::npos)
+                    {
+                        printf("\nlinknum: %li, target: %s\n", i, link.target.file.c_str());
+                        std::string targetContents;
+                        std::ifstream targetStream(linkUriAsString.substr(7));
+                        std::stringstream targetBuffer;
+                        targetBuffer << targetStream.rdbuf();
+                        targetContents = targetBuffer.str();
+                        client.DidOpen(linkUriAsString, targetContents);
+                        client.DocumentLink(linkUriAsString);
+                    }
+                    
+                }
+                
+            });
         }
         
         

@@ -19,7 +19,7 @@
 
 #define LOGFILE "clangd_out.json"
 #define DEBUG 1
-
+#include <signal.h>
 #include "transport.h"
 #include "protocol.h"
 
@@ -189,7 +189,7 @@ public:
         return SendRequest("textDocument/documentHighlight", std::move(params));
     }
     RequestID DocumentLink(DocumentUri uri) {
-        DocumentSymbolParams params;
+        DocumentLinkParams params;
         params.textDocument.uri = std::move(uri);
         return SendRequest("textDocument/documentLink", std::move(params));
     }
@@ -272,7 +272,8 @@ public:
     pid_t forkPid; //probably the Server PID
 #endif
     
-    explicit ProcessLanguageClient(const char *program, const char *arguments = "") {
+    explicit ProcessLanguageClient(const char *program, const char *arguments = ""){
+
 #if(PLATFORM == WINDOWS)
         SECURITY_ATTRIBUTES sa = {0};
         sa.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -354,7 +355,9 @@ public:
         CloseHandle(fProcess.hThread);
         CloseHandle(fProcess.hProcess);
 #elif(PLATFORM == LINUX)
-        //TODO: exit elegantly
+        ///TODO: exit elegantly
+        kill(forkPid, SIGKILL);
+
 #endif
     }
 
