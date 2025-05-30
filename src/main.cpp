@@ -16,13 +16,49 @@
  */
 int mySymbolTest = 42;
 
-int main() {
-    URI uri;
-    uri.parse("https://www.baidu.com/test/asdf");
-    printf("Host: %s\n", uri.host().c_str());
-    printf("Path: %s\n", uri.path().c_str());
+int main(int argc, char* argv[]) {
+    // URI uri;
+    // uri.parse("https://www.baidu.com/test/asdf");
+    // printf("Host: %s\n", uri.host().c_str());
+    // printf("Path: %s\n", uri.path().c_str());
 
-    //return 0;
+    //Tested with the following input arguments:
+    //./LspClientTest $PWD src/main.cpp g++ -I$PWD/include
+
+    //Generate compile commands for clangd based on input arguments.
+    std::vector<std::string> arguments;
+    for (size_t i = 0; i < argc; i++)
+    {
+        arguments.push_back(argv[i]);
+    }
+    
+    using json = nlohmann::json;        
+    json compileCommands;
+
+    std::string rootDir = arguments[1];
+    compileCommands["directory"] = rootDir;
+    std::string fileToCompile = rootDir + "/" + arguments[2];
+    compileCommands["file"] = fileToCompile;
+
+    std::string commands;
+    for (size_t i = 3; i < argc; i++)
+    {
+        commands += arguments[i] + " ";
+    }
+    commands += "-c " + fileToCompile;
+    compileCommands["command"] = commands;
+
+    json compileCommandsArray = json::array();
+    compileCommandsArray.push_back(compileCommands);
+
+    std::ofstream compileCommandsOutputFile("compile_commands.json");
+    compileCommandsOutputFile << compileCommandsArray.dump(2);
+    compileCommandsOutputFile.close();
+
+    //End of compile commands generation
+    
+
+
 
     MapMessageHandler my;
 #if(PLATFORM == WINDOWS)
@@ -42,9 +78,13 @@ int main() {
     });
 
     //string_ref file = "file:///C:/Users/Administrator/Desktop/test.c";
-    string_ref file = "file:///home/kristian/lsp-cpp/src/main.cpp";
+    string_ref file = "file:///home/kristblo/lsp-cpp/src/main.cpp";
     //string_ref file = "~/lsp-cpp/";
-    string_ref root = "file:///home/kristian/lsp-cpp/";
+    //string_ref root = "file:///home/kristblo/lsp-cpp/";
+
+    std::string rootUriAsInputString = "file://" + rootDir + "/";
+    string_ref rootUriAsStringRef = rootUriAsInputString;
+    printf("Root URI: %s", rootUriAsStringRef.c_str());
 
     
     std::string text;// = "int main() { return 0; }\n";
@@ -54,7 +94,7 @@ int main() {
     text = buffer.str();
     
     //URI library seems partially broken, luckily there's always substring.
-    std::string client_file = "file:///home/kristian/lsp-cpp/include/client.h";
+    std::string client_file = "file:///home/kristblo/lsp-cpp/include/client.h";
     std::string client_text;
     //std::ifstream ct("./include/client.h");
     std::ifstream ct(client_file.substr(7));
@@ -83,7 +123,7 @@ int main() {
             client.Shutdown();
         }
         if (res == 2) {
-            client.Initialize(root);
+            client.Initialize(rootUriAsStringRef);
         }
         if (res == 3) {
             client.DidOpen(file, text);
@@ -124,7 +164,7 @@ int main() {
                     DocumentLink link = result[i].get<DocumentLink>();
                     std::string linkUriAsString = link.target.file.c_str();
                     
-                    if (linkUriAsString.find(root) != std::string::npos)
+                    if (linkUriAsString.find(rootDir) != std::string::npos)
                     {
                         printf("\nlinknum: %li, target: %s\n", i, link.target.file.c_str());
                         std::string targetContents;
