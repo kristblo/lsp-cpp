@@ -498,10 +498,13 @@ public:
         std::ofstream logfile(LOGFILE, std::ios::app);
         if(logfile.is_open())
         {
-            logfile << "INPUT from server: \n";
             //dump(2) ensures indentation
-            logfile << json.dump(2) << "\n\r";
-            logfile.flush();//TODO: verify necessity of this call
+            if(json.dump(2) != "null")
+            {
+                logfile << "INPUT from server: \n";
+                logfile << json.dump(2) << "\n\r";
+                logfile.flush();//TODO: verify necessity of this call
+            }
             logfile.close();
         }
 #endif

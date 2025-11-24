@@ -2,12 +2,14 @@
 #include <thread>
 #include <fstream>
 #include <string>
+
 #include "client.h"
+#include "clientMsgHandlerWrapper.h"
 
 
 /**
- * The purpose of this branch is to experiment with and get to know the LSP in order to find out
- * what functionality is needed to use it in the Codeviz project
+ * The purpose of this branch is to experiment with the message handler and get a better
+ * understanding of how to use the callbacks
  * 
  * TODO: Look into Semantic Tokens, currently missing from the client. Could be the solution
  * for getting local variables.
@@ -21,6 +23,14 @@ int main(int argc, char* argv[]) {
     // uri.parse("https://www.baidu.com/test/asdf");
     // printf("Host: %s\n", uri.host().c_str());
     // printf("Path: %s\n", uri.path().c_str());
+
+    if (argc < 3)
+    {
+        std::cerr << "Not enough arguments. Do ./<program> <rootDir> <src/main.cpp> \
+            <compiler> [compile args]\n";
+        return 1;
+    }
+    
 
     //Tested with the following input arguments:
     //./LspClientTest $PWD src/main.cpp g++ -I$PWD/include
@@ -106,6 +116,9 @@ int main(int argc, char* argv[]) {
     std::ofstream clearFile(LOGFILE, std::ios::trunc);
     clearFile.close();
 
+    ClientMsgHandlerWrapper wrapperTest(&my, &client);
+    wrapperTest.projectRootDir = rootDir;
+
 
     int res;
     //printf("DEBUG: entering main program loop\n\r");
@@ -126,9 +139,29 @@ int main(int argc, char* argv[]) {
             client.Initialize(rootUriAsStringRef);
         }
         if (res == 3) {
-            client.DidOpen(file, text);
+            //client.DidOpen(file, text);
             //client.DidOpen(client_file, client_text);
-            client.Sync();
+            //client.Sync();
+            std::ofstream queueLogFile("logfile.txt", std::ios_base::app);
+            queueLogFile << "done recourse\n";
+            queueLogFile.close();
+            for(auto it = wrapperTest.getDocumentLinkMap().cbegin(); it != wrapperTest.getDocumentLinkMap().cend(); it++)
+            {
+                printf("File: %s\n", it->first.c_str());
+                
+                std::ofstream queueLogFile("logfile.txt", std::ios_base::app);
+                queueLogFile << "File: " << it->first.c_str() << "\n";
+                queueLogFile.close();
+
+                for(DocumentLink reference: it->second)
+                {
+                    printf("Reference: %s\n", reference.target.str().c_str());
+                    
+                    std::ofstream queueLogFile("logfile.txt", std::ios_base::app);
+                    queueLogFile << "Reference" << reference.target.str().c_str() << "\n";
+                    queueLogFile.close();                    
+                }
+            }            
         }
         if (res == 4) {
             client.DidClose(file);
@@ -157,28 +190,37 @@ int main(int argc, char* argv[]) {
         }
         if (res == 9)
         {
-            client.DocumentLink(file); 
-            my.bindResponse("textDocument/documentLink", [&](value &result){
-                for (size_t i = 0; i < result.size(); i++)
-                {
-                    DocumentLink link = result[i].get<DocumentLink>();
-                    std::string linkUriAsString = link.target.file.c_str();
+            // std::string fileContents = wrapperTest.getFileAsString(file);
+            // client.DidOpen(file, fileContents);
+            // client.DocumentLink(file); 
+            
+            // my.bindResponse("textDocument/documentLink", [&](value &result)
+            // {
+            //     for (size_t i = 0; i < result.size(); i++)
+            //     {
+            //         DocumentLink link = result[i].get<DocumentLink>();
+            //         std::string linkUriAsString = link.target.file.c_str();
                     
-                    if (linkUriAsString.find(rootDir) != std::string::npos)
-                    {
-                        printf("\nlinknum: %li, target: %s\n", i, link.target.file.c_str());
-                        std::string targetContents;
-                        std::ifstream targetStream(linkUriAsString.substr(7));
-                        std::stringstream targetBuffer;
-                        targetBuffer << targetStream.rdbuf();
-                        targetContents = targetBuffer.str();
-                        client.DidOpen(linkUriAsString, targetContents);
-                        client.DocumentLink(linkUriAsString);
-                    }
+            //         if (linkUriAsString.find(rootDir) != std::string::npos)
+            //         {
+            //             printf("\nlinknum: %li, target: %s\n", i, link.target.file.c_str());
+            //             std::string targetContents;
+            //             std::ifstream targetStream(linkUriAsString.substr(7));
+            //             std::stringstream targetBuffer;
+            //             targetBuffer << targetStream.rdbuf();
+            //             targetContents = targetBuffer.str();
+            //             client.DidOpen(linkUriAsString, targetContents);
+            //             client.DocumentLink(linkUriAsString);
+            //         }
                     
-                }
+            //     }
                 
-            });
+            // });
+            
+
+            //wrapperTest.recurseDocumentLinkResponse(file);
+            wrapperTest.mapProjectDocumentLinks(file);
+            printf("done recurse\n");
         }
         
         
